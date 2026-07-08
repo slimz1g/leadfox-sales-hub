@@ -109,12 +109,15 @@ export async function getPrimaryContactPhone(dealId: string): Promise<string | n
 }
 
 /**
- * Get the first associated contact's phone AND email for a deal. The email is
- * what we use to match the deal to a Fireflies meeting transcript.
+ * Get the first associated contact's phone AND all known emails (primary +
+ * secondary) for a deal. HubSpot stores secondary emails separately from the
+ * primary "email" property — someone can book a meeting from an address that
+ * isn't their primary CRM email, so we need to try all of them against
+ * Fireflies, not just the first one.
  */
 export async function getPrimaryContact(
   dealId: string
-): Promise<{ phone: string | null; email: string | null } | null> {
+): Promise<{ phone: string | null; email: string | null; emails: string[] } | null> {
   const assocRes = await fetchWithRetry(
     `${HUBSPOT_BASE}/crm/v3/objects/deals/${dealId}/associations/contacts`,
     { headers: authHeaders() }
@@ -125,14 +128,20 @@ export async function getPrimaryContact(
   if (!contactId) return null;
 
   const contactRes = await fetchWithRetry(
-    `${HUBSPOT_BASE}/crm/v3/objects/contacts/${contactId}?properties=phone,mobilephone,email`,
+    `${HUBSPOT_BASE}/crm/v3/objects/contacts/${contactId}?properties=phone,mobilephone,email,hs_additional_emails`,
     { headers: authHeaders() }
   );
   if (!contactRes.ok) return null;
   const contact = await contactRes.json();
   const phone = contact.properties?.phone || contact.properties?.mobilephone || null;
   const email = contact.properties?.email || null;
-  return { phone, email };
+  const additional: string[] = (contact.properties?.hs_additional_emails || "")
+    .split(";")
+    .map((e: string) => e.trim())
+    .filter(Boolean);
+
+  const emails = [email, ...additional].filter((e): e is string => !!e);
+  return { phone, email, emails };
 }
 
 export function hubspotDealUrl(portalId: string, dealId: string) {

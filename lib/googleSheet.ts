@@ -40,7 +40,10 @@ export async function getClosingRows(): Promise<ClosingRow[]> {
   const auth = getAuth();
   const sheets = google.sheets({ version: "v4", auth });
 
-  const range = `'${SHEET_TAB}'!A13:L200`; // starts after the header row we found at row 13
+  // Google's A1 notation requires doubling an apostrophe that's part of the
+  // sheet name itself (the tab is literally called "...juil '26").
+  const escapedTab = SHEET_TAB.replace(/'/g, "''");
+  const range = `'${escapedTab}'!A13:L200`; // starts after the header row we found at row 13
   const res = await sheets.spreadsheets.values.get({
     spreadsheetId: SHEET_ID,
     range,
@@ -50,8 +53,16 @@ export async function getClosingRows(): Promise<ClosingRow[]> {
   const parsed: ClosingRow[] = [];
   let currentRep = "";
 
+  // Column layout (confirmed against the real sheet header row):
+  // A=name(0) B=unused(1) C=amount(2) D=percent(3) E=produit logiciel(4)
+  // F=produit LF1(5) G=MRR(6) H=cashflow(7) I=prob 3 mois(8) J=prob mois courant(9)
+  // K=note(10) L=dateSuivi(11)
   for (const row of rows) {
-    const [name, amount, percent, , , , , , , note, dateSuivi] = row;
+    const name = row[0];
+    const amount = row[2];
+    const percent = row[3];
+    const note = row[10];
+    const dateSuivi = row[11];
     if (!name) continue;
 
     const isRepHeader = !amount && !percent; // bare name row = new rep section

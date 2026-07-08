@@ -33,8 +33,20 @@ type Priorities = {
   p3_no_show: any[];
   p4_stale_planned_meetings: any[];
   p5_nettoyage: any[];
-  overdue_tasks: { total: number; items: any[] };
+  overdue_tasks: TaskItem[];
+  upcoming_tasks: TaskItem[];
   p6_outbound_general: any[];
+};
+
+type TaskItem = {
+  id: string;
+  subject: string;
+  dueDate: string | null;
+  priority: string;
+  type: string;
+  isOverdue: boolean;
+  dealId: string | null;
+  dealName: string | null;
 };
 
 export default function PrioritesPage() {
@@ -43,6 +55,26 @@ export default function PrioritesPage() {
   const [loading, setLoading] = useState(true);
   const [scope, setScope] = useState<"mine" | "team">("mine");
   const [pipelineFilter, setPipelineFilter] = useState<"tous" | "inbound" | "entonnoir" | "outbound">("tous");
+  const [completedTaskIds, setCompletedTaskIds] = useState<Set<string>>(new Set());
+  const [completingId, setCompletingId] = useState<string | null>(null);
+
+  async function handleCompleteTask(taskId: string) {
+    setCompletingId(taskId);
+    try {
+      const res = await fetch("/api/tasks/complete", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ taskId }),
+      });
+      const json = await res.json();
+      if (!res.ok || json.error) throw new Error(json.error || "Échec");
+      setCompletedTaskIds((prev) => new Set(prev).add(taskId));
+    } catch (e: any) {
+      alert(`Impossible de marquer la tâche comme faite : ${e.message}`);
+    } finally {
+      setCompletingId(null);
+    }
+  }
 
   useEffect(() => {
     setLoading(true);
@@ -279,20 +311,47 @@ export default function PrioritesPage() {
               ))}
             </Section>
 
+            <Section
+              title="📋 Tâches HubSpot"
+              count={
+                data.upcoming_tasks.filter((t) => !completedTaskIds.has(t.id)).length +
+                data.overdue_tasks.filter((t) => !completedTaskIds.has(t.id)).length
+              }
+              emptyText="✅ Rien à signaler."
+            >
+              {data.upcoming_tasks.filter((t) => !completedTaskIds.has(t.id)).length > 0 && (
+                <div style={{ fontSize: 12, fontWeight: 700, color: COLORS.navySoft, marginTop: 4 }}>
+                  À VENIR (AUJOURD'HUI / DEMAIN)
+                </div>
+              )}
+              {data.upcoming_tasks
+                .filter((t) => !completedTaskIds.has(t.id))
+                .map((t) => (
+                  <TaskRow key={t.id} task={t} onComplete={handleCompleteTask} completing={completingId === t.id} tone={COLORS.blue} />
+                ))}
+
+              {data.overdue_tasks.filter((t) => !completedTaskIds.has(t.id)).length > 0 && (
+                <div style={{ fontSize: 12, fontWeight: 700, color: COLORS.navySoft, marginTop: 12 }}>
+                  EN RETARD ({data.overdue_tasks.filter((t) => !completedTaskIds.has(t.id)).length})
+                </div>
+              )}
+              {data.overdue_tasks
+                .filter((t) => !completedTaskIds.has(t.id))
+                .slice(0, 20)
+                .map((t) => (
+                  <TaskRow key={t.id} task={t} onComplete={handleCompleteTask} completing={completingId === t.id} tone={COLORS.red} />
+                ))}
+              {data.overdue_tasks.filter((t) => !completedTaskIds.has(t.id)).length > 20 && (
+                <div style={{ fontSize: 12, fontStyle: "italic", color: COLORS.navySoft, padding: "4px 2px" }}>
+                  + {data.overdue_tasks.filter((t) => !completedTaskIds.has(t.id)).length - 20} autres tâches en retard — voir dans HubSpot
+                </div>
+              )}
+            </Section>
+
             <Section title="🧹 Nettoyage" count={p5.length}>
               {p5.map((d, i) => (
                 <Row key={i} name={d.name} meta={d.overdueRecall ? "Rappel dépassé (60j)" : `${d.days} jours`} url={d.hubspotUrl} tone={COLORS.amber} ownerName={d.ownerName} />
               ))}
-              {data.overdue_tasks.total > 0 && pipelineFilter === "tous" && (
-                <div style={{ background: COLORS.card, border: `1px solid ${COLORS.border}`, borderLeft: `3px solid ${COLORS.amber}`, borderRadius: 10, padding: 14, marginTop: 4 }}>
-                  <strong style={{ color: COLORS.navy }}>⏰ {data.overdue_tasks.total} tâches HubSpot en retard</strong>
-                  {data.overdue_tasks.items.slice(0, 3).map((t, i) => (
-                    <div key={i} style={{ fontSize: 12, color: COLORS.navySoft, marginTop: 4 }}>
-                      {t.properties.hs_task_subject} · {t.properties.hs_task_priority}
-                    </div>
-                  ))}
-                </div>
-              )}
             </Section>
 
             <Section title="📤 Outbound — cadence normale" count={p6.length}>
@@ -303,6 +362,60 @@ export default function PrioritesPage() {
           </>
           );
         })()}
+      </div>
+    </div>
+  );
+}
+
+function TaskRow({
+  task,
+  onComplete,
+  completing,
+  tone,
+}: {
+  task: TaskItem;
+  onComplete: (id: string) => void;
+  completing: boolean;
+  tone: string;
+}) {
+  const dueLabel = task.dueDate
+    ? new Date(task.dueDate).toLocaleDateString("fr-CA", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })
+    : "";
+  return (
+    <div
+      style={{
+        background: COLORS.card,
+        border: `1px solid ${COLORS.border}`,
+        borderLeft: `3px solid ${tone}`,
+        borderRadius: 8,
+        padding: "10px 12px",
+        display: "flex",
+        alignItems: "center",
+        gap: 10,
+        fontSize: 13,
+        marginTop: 6,
+      }}
+    >
+      <button
+        onClick={() => onComplete(task.id)}
+        disabled={completing}
+        title="Marquer comme fait"
+        style={{
+          width: 20,
+          height: 20,
+          borderRadius: 5,
+          border: `2px solid ${COLORS.border}`,
+          background: "#fff",
+          cursor: completing ? "wait" : "pointer",
+          flexShrink: 0,
+        }}
+      />
+      <div style={{ flex: 1 }}>
+        <strong style={{ color: COLORS.navy }}>{task.subject}</strong>
+        {task.dealName && <span style={{ color: COLORS.navySoft }}> — {task.dealName}</span>}
+        <div style={{ fontSize: 11.5, color: COLORS.navySoft, marginTop: 2 }}>
+          {task.type} · {task.priority} {dueLabel && `· ${dueLabel}`}
+        </div>
       </div>
     </div>
   );

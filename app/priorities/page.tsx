@@ -45,6 +45,7 @@ export default function PrioritesPage() {
 
   useEffect(() => {
     setLoading(true);
+    setError(null);
     fetch(`/api/priorities?scope=${scope}`)
       .then((r) => r.json())
       .then((json) => {
@@ -147,9 +148,15 @@ export default function PrioritesPage() {
 
         {loading && <div style={{ color: COLORS.navySoft }}>Chargement des priorités…</div>}
 
-        {error && (
+        {error && !data && (
           <div style={{ background: COLORS.redSoft, border: `1px solid ${COLORS.red}`, borderRadius: 10, padding: 16, color: COLORS.red }}>
             Erreur en chargeant les données : {error}
+          </div>
+        )}
+
+        {error && data && (
+          <div style={{ fontSize: 12.5, color: COLORS.amber, marginBottom: 16, fontStyle: "italic" }}>
+            ⚠️ Le dernier rafraîchissement a échoué ({error}) — les données ci-dessous datent du chargement précédent.
           </div>
         )}
 

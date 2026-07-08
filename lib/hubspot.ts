@@ -91,15 +91,32 @@ export type Task = {
  * `isOverdue` and `dueDate`.
  */
 export async function getOpenTasks(ownerId: string, limit = 250): Promise<Task[]> {
+  const now = Date.now();
+  const endOfTomorrow = new Date();
+  endOfTomorrow.setDate(endOfTomorrow.getDate() + 2);
+  endOfTomorrow.setHours(0, 0, 0, 0);
+
   const res = await fetchWithRetry(`${HUBSPOT_BASE}/crm/v3/objects/tasks/search`, {
     method: "POST",
     headers: authHeaders(),
     body: JSON.stringify({
+      // Two filter groups = OR'd together: overdue tasks, OR tasks due before
+      // the end of tomorrow (covers "upcoming today/tomorrow"). Each group's
+      // own filters are AND'd. hs_task_is_open wasn't a filterable/indexed
+      // property in testing, so we go back to the field we know works.
       filterGroups: [
         {
           filters: [
             { propertyName: "hubspot_owner_id", operator: "EQ", value: ownerId },
-            { propertyName: "hs_task_is_open", operator: "EQ", value: "true" },
+            { propertyName: "hs_task_is_overdue", operator: "EQ", value: "true" },
+          ],
+        },
+        {
+          filters: [
+            { propertyName: "hubspot_owner_id", operator: "EQ", value: ownerId },
+            { propertyName: "hs_task_status", operator: "NEQ", value: "COMPLETED" },
+            { propertyName: "hs_timestamp", operator: "LT", value: String(endOfTomorrow.getTime()) },
+            { propertyName: "hs_timestamp", operator: "GTE", value: String(now) },
           ],
         },
       ],

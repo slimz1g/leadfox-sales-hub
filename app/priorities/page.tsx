@@ -181,7 +181,14 @@ export default function PrioritesPage() {
                 {p1.map((d, i) => (
                   <div key={i} style={{ background: COLORS.card, border: `1px solid ${COLORS.redSoft}`, borderLeft: `3px solid ${COLORS.red}`, borderRadius: 12, padding: 16 }}>
                     <div style={{ display: "flex", justifyContent: "space-between" }}>
-                      <strong style={{ color: COLORS.navy }}>😊 {d.name}</strong>
+                      <div>
+                        <strong style={{ color: COLORS.navy }}>😊 {d.name}</strong>
+                        {d.ownerName && (
+                          <div style={{ fontSize: 11, color: COLORS.orange, fontWeight: 600, marginTop: 2 }}>
+                            👤 {d.ownerName}
+                          </div>
+                        )}
+                      </div>
                       <span style={{ fontSize: 20, fontWeight: 700, color: COLORS.red }}>{d.percent}%</span>
                     </div>
                     <div style={{ fontSize: 13, color: COLORS.navySoft, marginTop: 4 }}>💰 {d.amount}</div>
@@ -245,7 +252,7 @@ export default function PrioritesPage() {
               subtitle="Tous stages confondus : pas de tâche future, pas de contact depuis 10 jours+"
             >
               {p1bItems.map((d, i) => (
-                <Row key={i} name={d.name} meta={`${d.days} jours sans contact`} url={d.hubspotUrl} tone={COLORS.indigo} />
+                <Row key={i} name={d.name} meta={`${d.days} jours sans contact`} url={d.hubspotUrl} tone={COLORS.indigo} ownerName={d.ownerName} />
               ))}
               {data.p1b_entonnoir_no_followup.total > data.p1b_entonnoir_no_followup.items.length && pipelineFilter === "tous" && (
                 <div style={{ fontSize: 12, fontStyle: "italic", color: COLORS.navySoft, padding: "4px 2px" }}>
@@ -256,25 +263,25 @@ export default function PrioritesPage() {
 
             <Section title="📥 Leads inbound sans contact 48h+" count={p2.length}>
               {p2.map((d, i) => (
-                <Row key={i} name={d.name} meta={`${d.days ?? "?"} jours`} url={d.hubspotUrl} tone={COLORS.orange} />
+                <Row key={i} name={d.name} meta={`${d.days ?? "?"} jours`} url={d.hubspotUrl} tone={COLORS.orange} ownerName={d.ownerName} />
               ))}
             </Section>
 
             <Section title="📵 No Show sans contact 48h+" count={p3.length} emptyText="✅ Rien à signaler.">
               {p3.map((d, i) => (
-                <Row key={i} name={d.name} meta="" url={d.hubspotUrl} tone={COLORS.orange} />
+                <Row key={i} name={d.name} meta="" url={d.hubspotUrl} tone={COLORS.orange} ownerName={d.ownerName} />
               ))}
             </Section>
 
             <Section title="🗓️ RV planifié à mettre à jour" count={p4.length} emptyText="✅ Rien à signaler.">
               {p4.map((d, i) => (
-                <Row key={i} name={d.name} meta={`Rencontre prévue le ${d.meetingDate}`} url={d.hubspotUrl} tone={COLORS.red} />
+                <Row key={i} name={d.name} meta={`Rencontre prévue le ${d.meetingDate}`} url={d.hubspotUrl} tone={COLORS.red} ownerName={d.ownerName} />
               ))}
             </Section>
 
             <Section title="🧹 Nettoyage" count={p5.length}>
               {p5.map((d, i) => (
-                <Row key={i} name={d.name} meta={d.overdueRecall ? "Rappel dépassé (60j)" : `${d.days} jours`} url={d.hubspotUrl} tone={COLORS.amber} />
+                <Row key={i} name={d.name} meta={d.overdueRecall ? "Rappel dépassé (60j)" : `${d.days} jours`} url={d.hubspotUrl} tone={COLORS.amber} ownerName={d.ownerName} />
               ))}
               {data.overdue_tasks.total > 0 && pipelineFilter === "tous" && (
                 <div style={{ background: COLORS.card, border: `1px solid ${COLORS.border}`, borderLeft: `3px solid ${COLORS.amber}`, borderRadius: 10, padding: 14, marginTop: 4 }}>
@@ -290,7 +297,7 @@ export default function PrioritesPage() {
 
             <Section title="📤 Outbound — cadence normale" count={p6.length}>
               {p6.map((d, i) => (
-                <Row key={i} name={d.name} meta={`${d.days ?? "?"} jours`} url={d.hubspotUrl} tone={COLORS.navySoft} />
+                <Row key={i} name={d.name} meta={`${d.days ?? "?"} jours`} url={d.hubspotUrl} tone={COLORS.navySoft} ownerName={d.ownerName} />
               ))}
             </Section>
           </>
@@ -320,7 +327,19 @@ function Section({ title, subtitle, count, emptyText, children }: any) {
   );
 }
 
-function Row({ name, meta, url, tone }: { name: string; meta: string; url: string | null; tone: string }) {
+function Row({
+  name,
+  meta,
+  url,
+  tone,
+  ownerName,
+}: {
+  name: string;
+  meta: string;
+  url: string | null;
+  tone: string;
+  ownerName?: string | null;
+}) {
   return (
     <div
       style={{
@@ -331,11 +350,17 @@ function Row({ name, meta, url, tone }: { name: string; meta: string; url: strin
         padding: "10px 12px",
         display: "flex",
         justifyContent: "space-between",
+        alignItems: "center",
         fontSize: 13,
       }}
     >
       <span>
         <strong style={{ color: COLORS.navy }}>{name}</strong> {meta && `— ${meta}`}
+        {ownerName && (
+          <span style={{ marginLeft: 8, fontSize: 11, color: COLORS.orange, fontWeight: 600 }}>
+            👤 {ownerName}
+          </span>
+        )}
       </span>
       {url && (
         <a href={url} target="_blank" rel="noreferrer" style={{ color: COLORS.navySoft, fontSize: 12 }}>

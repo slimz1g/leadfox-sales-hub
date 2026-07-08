@@ -36,8 +36,46 @@ function daysSince(dateStr: string | undefined): number | null {
   return h === null ? null : Math.floor(h / 24);
 }
 
-export async function GET() {
+function stageToPipeline(stageId: string): "entonnoir" | "inbound" | "outbound" | "unknown" {
+  const inboundStages: string[] = [
+    STAGES.INBOUND_SQL,
+    STAGES.INBOUND_1ER_SUIVI,
+    STAGES.INBOUND_2E_SUIVI,
+    STAGES.INBOUND_3E_SUIVI,
+    STAGES.INBOUND_BOUGE_PAS,
+    STAGES.INBOUND_REMIS_A_PLUS_TARD,
+    STAGES.INBOUND_RV_PLANIFIE,
+  ];
+  const outboundStages: string[] = [
+    STAGES.OUTBOUND_EMAIL,
+    STAGES.OUTBOUND_EN_SUIVI,
+    STAGES.OUTBOUND_RDV_PLANIFIE,
+    STAGES.OUTBOUND_NO_SHOW,
+    STAGES.OUTBOUND_BOUGE_PAS,
+  ];
+  const entonnoirStages: string[] = [
+    STAGES.NEGO_EN_COURS,
+    STAGES.REMIS_A_PLUS_TARD_ENTONNOIR,
+    STAGES.RV_REALISE,
+    STAGES.NE_BOUGE_PAS_ENTONNOIR,
+    STAGES.GHOSTING,
+  ];
+  if (inboundStages.includes(stageId)) return "inbound";
+  if (outboundStages.includes(stageId)) return "outbound";
+  if (entonnoirStages.includes(stageId)) return "entonnoir";
+  return "unknown";
+}
+
+export async function GET(request: Request) {
   try {
+    const { searchParams } = new URL(request.url);
+    const scope = searchParams.get("scope") === "team" ? "team" : "mine";
+
+    // Helper: include the owner filter only in "mine" scope. Spread this into
+    // each filters array below so the same queries work for both scopes.
+    const ownerFilter = () =>
+      scope === "mine" ? [{ propertyName: "hubspot_owner_id", operator: "EQ" as const, value: OWNER_ID }] : [];
+
     // Calls run in parallel for speed (a serverless function has a hard time
     // limit — running everything sequentially risked timing out). Rate-limit
     // resilience now lives in lib/hubspot.ts (automatic retry on 429) instead
@@ -62,7 +100,7 @@ export async function GET() {
             filters: [
               { propertyName: "pipeline", operator: "EQ", value: PIPELINES.ENTONNOIR },
               { propertyName: "hs_is_closed", operator: "EQ", value: "false" },
-              { propertyName: "hubspot_owner_id", operator: "EQ", value: OWNER_ID },
+              ...ownerFilter(),
             ],
           },
         ],
@@ -75,7 +113,7 @@ export async function GET() {
           {
             filters: [
               { propertyName: "pipeline", operator: "EQ", value: PIPELINES.INBOUND },
-              { propertyName: "hubspot_owner_id", operator: "EQ", value: OWNER_ID },
+              ...ownerFilter(),
               {
                 propertyName: "dealstage",
                 operator: "IN",
@@ -98,7 +136,7 @@ export async function GET() {
           {
             filters: [
               { propertyName: "pipeline", operator: "EQ", value: PIPELINES.OUTBOUND_COLD_EMAIL },
-              { propertyName: "hubspot_owner_id", operator: "EQ", value: OWNER_ID },
+              ...ownerFilter(),
               { propertyName: "dealstage", operator: "EQ", value: STAGES.OUTBOUND_NO_SHOW },
             ],
           },
@@ -112,7 +150,7 @@ export async function GET() {
           {
             filters: [
               { propertyName: "pipeline", operator: "EQ", value: PIPELINES.INBOUND },
-              { propertyName: "hubspot_owner_id", operator: "EQ", value: OWNER_ID },
+              ...ownerFilter(),
               { propertyName: "dealstage", operator: "EQ", value: STAGES.INBOUND_RV_PLANIFIE },
             ],
           },
@@ -126,7 +164,7 @@ export async function GET() {
           {
             filters: [
               { propertyName: "pipeline", operator: "EQ", value: PIPELINES.OUTBOUND_COLD_EMAIL },
-              { propertyName: "hubspot_owner_id", operator: "EQ", value: OWNER_ID },
+              ...ownerFilter(),
               { propertyName: "dealstage", operator: "EQ", value: STAGES.OUTBOUND_RDV_PLANIFIE },
             ],
           },
@@ -139,7 +177,7 @@ export async function GET() {
         [
           {
             filters: [
-              { propertyName: "hubspot_owner_id", operator: "EQ", value: OWNER_ID },
+              ...ownerFilter(),
               {
                 propertyName: "dealstage",
                 operator: "IN",
@@ -163,7 +201,7 @@ export async function GET() {
           {
             filters: [
               { propertyName: "pipeline", operator: "EQ", value: PIPELINES.OUTBOUND_COLD_EMAIL },
-              { propertyName: "hubspot_owner_id", operator: "EQ", value: OWNER_ID },
+              ...ownerFilter(),
               {
                 propertyName: "dealstage",
                 operator: "IN",
@@ -238,6 +276,7 @@ export async function GET() {
         return {
           dealId: match?.id ?? null,
           name: row.dealName,
+          pipeline: "entonnoir" as const,
           amount: row.amount,
           percent: row.closingPercent,
           note: row.note,
@@ -262,6 +301,7 @@ export async function GET() {
         dealId: d.id,
         name: d.properties.dealname,
         stage: d.properties.dealstage,
+        pipeline: "entonnoir" as const,
         days: daysSince(d.properties.notes_last_contacted),
         hubspotUrl: hubspotDealUrl(HUBSPOT_PORTAL_ID, d.id),
       }))
@@ -277,6 +317,7 @@ export async function GET() {
         dealId: d.id,
         name: d.properties.dealname,
         stage: d.properties.dealstage,
+        pipeline: "inbound" as const,
         days: daysSince(d.properties.notes_last_contacted),
         hubspotUrl: hubspotDealUrl(HUBSPOT_PORTAL_ID, d.id),
       }));
@@ -290,15 +331,20 @@ export async function GET() {
       .map((d) => ({
         dealId: d.id,
         name: d.properties.dealname,
+        pipeline: "outbound" as const,
         hubspotUrl: hubspotDealUrl(HUBSPOT_PORTAL_ID, d.id),
       }));
 
     // ---- P4: RV/RDV planifié, meeting date passed, stage unchanged ----
-    const stalePlanned = [...rvPlanifieInbound.results, ...rdvPlanifieOutbound.results]
+    const stalePlanned = [
+      ...rvPlanifieInbound.results.map((d) => ({ ...d, __pipeline: "inbound" as const })),
+      ...rdvPlanifieOutbound.results.map((d) => ({ ...d, __pipeline: "outbound" as const })),
+    ]
       .filter((d) => d.properties.closedate && new Date(d.properties.closedate).getTime() < Date.now())
       .map((d) => ({
         dealId: d.id,
         name: d.properties.dealname,
+        pipeline: d.__pipeline,
         meetingDate: d.properties.closedate,
         hubspotUrl: hubspotDealUrl(HUBSPOT_PORTAL_ID, d.id),
       }));
@@ -322,6 +368,7 @@ export async function GET() {
         dealId: d.id,
         name: d.properties.dealname,
         stage: d.properties.dealstage,
+        pipeline: stageToPipeline(d.properties.dealstage),
         days,
         overdueRecall,
         hubspotUrl: hubspotDealUrl(HUBSPOT_PORTAL_ID, d.id),
@@ -339,6 +386,7 @@ export async function GET() {
         dealId: d.id,
         name: d.properties.dealname,
         stage: d.properties.dealstage,
+        pipeline: "outbound" as const,
         days: daysSince(d.properties.notes_last_contacted),
         hubspotUrl: hubspotDealUrl(HUBSPOT_PORTAL_ID, d.id),
       }));

@@ -101,8 +101,8 @@ export async function GET(request: Request) {
           {
             filters: [
               { propertyName: "pipeline", operator: "EQ", value: PIPELINES.ENTONNOIR },
-              { propertyName: "hs_is_closed", operator: "EQ", value: "false" },
               ...ownerFilter(),
+              { propertyName: "hs_is_closed", operator: "EQ", value: "false" },
             ],
           },
         ],
@@ -116,6 +116,7 @@ export async function GET(request: Request) {
             filters: [
               { propertyName: "pipeline", operator: "EQ", value: PIPELINES.INBOUND },
               ...ownerFilter(),
+              { propertyName: "hs_is_closed", operator: "EQ", value: "false" },
               {
                 propertyName: "dealstage",
                 operator: "IN",
@@ -139,6 +140,7 @@ export async function GET(request: Request) {
             filters: [
               { propertyName: "pipeline", operator: "EQ", value: PIPELINES.OUTBOUND_COLD_EMAIL },
               ...ownerFilter(),
+              { propertyName: "hs_is_closed", operator: "EQ", value: "false" },
               { propertyName: "dealstage", operator: "EQ", value: STAGES.OUTBOUND_NO_SHOW },
             ],
           },
@@ -153,6 +155,7 @@ export async function GET(request: Request) {
             filters: [
               { propertyName: "pipeline", operator: "EQ", value: PIPELINES.INBOUND },
               ...ownerFilter(),
+              { propertyName: "hs_is_closed", operator: "EQ", value: "false" },
               { propertyName: "dealstage", operator: "EQ", value: STAGES.INBOUND_RV_PLANIFIE },
             ],
           },
@@ -167,6 +170,7 @@ export async function GET(request: Request) {
             filters: [
               { propertyName: "pipeline", operator: "EQ", value: PIPELINES.OUTBOUND_COLD_EMAIL },
               ...ownerFilter(),
+              { propertyName: "hs_is_closed", operator: "EQ", value: "false" },
               { propertyName: "dealstage", operator: "EQ", value: STAGES.OUTBOUND_RDV_PLANIFIE },
             ],
           },
@@ -180,6 +184,7 @@ export async function GET(request: Request) {
           {
             filters: [
               ...ownerFilter(),
+              { propertyName: "hs_is_closed", operator: "EQ", value: "false" },
               {
                 propertyName: "dealstage",
                 operator: "IN",
@@ -204,6 +209,7 @@ export async function GET(request: Request) {
             filters: [
               { propertyName: "pipeline", operator: "EQ", value: PIPELINES.OUTBOUND_COLD_EMAIL },
               ...ownerFilter(),
+              { propertyName: "hs_is_closed", operator: "EQ", value: "false" },
               {
                 propertyName: "dealstage",
                 operator: "IN",

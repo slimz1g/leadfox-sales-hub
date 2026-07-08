@@ -26,6 +26,7 @@ const FONT = `@import url('https://fonts.googleapis.com/css2?family=Inter:wght@4
 
 type Priorities = {
   generatedAt: string;
+  sheetTabUsed?: string;
   p1_closing: any[];
   p1b_entonnoir_no_followup: { total: number; items: any[] };
   p2_inbound_fresh: any[];
@@ -84,9 +85,14 @@ export default function PrioritesPage() {
           {new Date().toLocaleDateString("fr-CA", { weekday: "long", year: "numeric", month: "long", day: "numeric" }).toUpperCase()} · SLIM LABASSI
         </div>
         <h1 style={{ fontSize: 26, fontWeight: 700, color: COLORS.navy, margin: "6px 0 4px" }}>🎯 L'ordre du jour</h1>
-        <p style={{ fontSize: 14, color: COLORS.navySoft, margin: "0 0 20px" }}>
+        <p style={{ fontSize: 14, color: COLORS.navySoft, margin: "0 0 4px" }}>
           Le plus urgent en haut, le nettoyage en bas
         </p>
+        {data?.sheetTabUsed && (
+          <p style={{ fontSize: 11, color: COLORS.navySoft, margin: "0 0 20px" }}>
+            📊 Sheet : {data.sheetTabUsed}
+          </p>
+        )}
 
         <div style={{ display: "flex", gap: 8, marginBottom: 14 }}>
           {[

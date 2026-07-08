@@ -243,8 +243,10 @@ export async function GET(request: Request) {
         // so we try every known email for this contact, not just the first one.
         let fireflies: { insight: string; recordingLabel: string; link: string } | null = null;
         let firefliesDebug = "";
-        if (!contact) {
-          firefliesDebug = "Aucun contact associé trouvé sur ce deal HubSpot.";
+        if (!match) {
+          firefliesDebug = `Aucun deal HubSpot trouvé dans l'Entonnoir de ventes correspondant au nom "${row.dealName}" (vérifie l'orthographe exacte, ou que le deal est bien dans cette pipeline).`;
+        } else if (!contact) {
+          firefliesDebug = "Deal HubSpot trouvé, mais aucun contact associé à ce deal.";
         } else if (contact.emails.length === 0) {
           firefliesDebug = "Le contact associé n'a aucune adresse courriel dans HubSpot.";
         } else {

@@ -203,7 +203,12 @@ export async function GET() {
         // main page load. Matched by the contact's email since that's more
         // reliable than matching by name.
         let fireflies: { insight: string; recordingLabel: string; link: string } | null = null;
-        if (contact?.email) {
+        let firefliesDebug = "";
+        if (!contact) {
+          firefliesDebug = "Aucun contact associé trouvé sur ce deal HubSpot.";
+        } else if (!contact.email) {
+          firefliesDebug = "Le contact associé n'a pas d'adresse courriel dans HubSpot.";
+        } else {
           try {
             const transcript = await findTranscriptByParticipant(contact.email);
             if (transcript) {
@@ -214,9 +219,11 @@ export async function GET() {
                 recordingLabel: `${transcript.title} · ${new Date(transcript.date).toLocaleDateString("fr-CA")} · ${Math.round(transcript.duration)} min`,
                 link: firefliesRecordingUrl(transcript.id),
               };
+            } else {
+              firefliesDebug = `Aucune transcription Fireflies trouvée pour ${contact.email}.`;
             }
-          } catch (e) {
-            console.warn(`Fireflies lookup failed for ${row.dealName}:`, e);
+          } catch (e: any) {
+            firefliesDebug = `Erreur Fireflies : ${e.message}`;
           }
         }
 
@@ -230,6 +237,7 @@ export async function GET() {
           phone: contact?.phone ?? null,
           hubspotUrl: match ? hubspotDealUrl(HUBSPOT_PORTAL_ID, match.id) : null,
           fireflies,
+          firefliesDebug,
         };
       })
     );

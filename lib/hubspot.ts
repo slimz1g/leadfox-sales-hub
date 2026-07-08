@@ -20,15 +20,19 @@ function sleep(ms: number) {
 }
 
 /**
- * fetch() with one automatic retry on HubSpot's 429 rate-limit response.
+ * fetch() with automatic retries on HubSpot's 429 rate-limit response.
  * We keep requests running in parallel (fast — avoids the serverless function
- * timeout) but back off briefly and retry once if HubSpot says "too fast".
+ * timeout) but back off briefly and retry if HubSpot says "too fast". Two
+ * retries with increasing backoff handles occasional double-429s that a
+ * single retry didn't cover.
  */
 async function fetchWithRetry(url: string, options: RequestInit): Promise<Response> {
-  const res = await fetch(url, options);
-  if (res.status === 429) {
-    await sleep(1200);
-    return fetch(url, options);
+  const delays = [1200, 2500];
+  let res = await fetch(url, options);
+  for (const delay of delays) {
+    if (res.status !== 429) break;
+    await sleep(delay);
+    res = await fetch(url, options);
   }
   return res;
 }

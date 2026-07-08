@@ -7,7 +7,7 @@
 import { google } from "googleapis";
 
 const SHEET_ID = "1-TicSgs0Ds6-_6DOZ1m-7Bm2LVCM5eqNcFoe4-lJZBI";
-const SHEET_TAB = "Pipeline vendeur - juil '26"; // ⚠️ this tab name changes monthly — see note below
+const TAB_PREFIX = "Pipeline vendeur"; // the monthly tab is always named "Pipeline vendeur - <mois> '<an>"
 
 export type ClosingRow = {
   dealName: string;
@@ -31,6 +31,33 @@ function getAuth() {
 }
 
 /**
+ * Finds the current "Pipeline vendeur - <mois>" tab automatically instead of
+ * hardcoding a name that changes every month. Historical tab names have been
+ * inconsistent (some in French like "juil '26", one even in English "july
+ * '25"), so name-parsing the month would be fragile. Instead we rely on
+ * `sheetId`, which Google assigns once at tab creation and never reuses or
+ * reorders — the highest sheetId among "Pipeline vendeur - *" tabs is always
+ * the most recently created one, i.e. the current month.
+ */
+async function findCurrentMonthTab(sheets: ReturnType<typeof google.sheets>): Promise<string> {
+  const meta = await sheets.spreadsheets.get({
+    spreadsheetId: SHEET_ID,
+    fields: "sheets.properties(title,sheetId)",
+  });
+
+  const candidates = (meta.data.sheets ?? [])
+    .map((s) => s.properties)
+    .filter((p): p is { title: string; sheetId: number } => !!p?.title?.startsWith(TAB_PREFIX));
+
+  if (candidates.length === 0) {
+    throw new Error(`No sheet tab starting with "${TAB_PREFIX}" was found.`);
+  }
+
+  const newest = candidates.reduce((a, b) => (b.sheetId > a.sheetId ? b : a));
+  return newest.title;
+}
+
+/**
  * Reads the sheet and returns rows grouped under their rep section header
  * (e.g. "Slim", "Alexandre Paquet"), stopping logic mirrors what we found
  * manually: a bare name in column A with no other columns filled = a new
@@ -40,9 +67,11 @@ export async function getClosingRows(): Promise<ClosingRow[]> {
   const auth = getAuth();
   const sheets = google.sheets({ version: "v4", auth });
 
+  const tabName = await findCurrentMonthTab(sheets);
+
   // Google's A1 notation requires doubling an apostrophe that's part of the
   // sheet name itself (the tab is literally called "...juil '26").
-  const escapedTab = SHEET_TAB.replace(/'/g, "''");
+  const escapedTab = tabName.replace(/'/g, "''");
   const range = `'${escapedTab}'!A13:L200`; // starts after the header row we found at row 13
   const res = await sheets.spreadsheets.values.get({
     spreadsheetId: SHEET_ID,
@@ -83,12 +112,3 @@ export async function getClosingRows(): Promise<ClosingRow[]> {
 
   return parsed;
 }
-
-/**
- * ⚠️ Known limitation: the sheet tab is named per-month ("Pipeline vendeur - juil '26"),
- * and history shows a new tab is created monthly (juin '26, mai '26, etc.). This will
- * silently break at the start of each month. Options for later:
- *   1. List all sheet tabs via spreadsheets.get and pick the most recent "Pipeline vendeur - *" tab automatically
- *   2. Ask the team to stop renaming tabs monthly and just keep one running tab
- * Flagging here rather than solving now — worth a decision before this ships.
- */

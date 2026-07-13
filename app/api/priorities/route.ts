@@ -229,9 +229,11 @@ export async function GET(request: Request) {
     // scope. If the key doesn't have it, this fails — we don't want that to
     // break the whole page, so it's fetched separately and degrades gracefully.
     let allTasks: Awaited<ReturnType<typeof getOpenTasks>> = [];
+    let tasksDebugError: string | null = null;
     try {
       allTasks = await getOpenTasks(OWNER_ID, 250);
-    } catch (e) {
+    } catch (e: any) {
+      tasksDebugError = e.message;
       console.warn("Skipping tasks (likely missing scope):", e);
     }
 
@@ -441,6 +443,7 @@ export async function GET(request: Request) {
       p5_nettoyage: nettoyage,
       overdue_tasks: overdueTaskList,
       upcoming_tasks: upcomingTaskList,
+      tasksDebugError,
       p6_outbound_general: p6,
     });
   } catch (err: any) {

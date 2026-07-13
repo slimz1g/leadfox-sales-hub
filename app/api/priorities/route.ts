@@ -23,7 +23,12 @@ import { getClosingRows } from "@/lib/googleSheet";
 import { findTranscriptByParticipant, firefliesRecordingUrl } from "@/lib/fireflies";
 
 const HUBSPOT_PORTAL_ID = process.env.HUBSPOT_PORTAL_ID!;
-const OWNER_ID = process.env.HUBSPOT_OWNER_ID!; // Slim, for the solo deployment
+// Sales team roster. Static for now (no auth/user directory yet) — add reps
+// here as the team grows. IDs are HubSpot owner IDs.
+const SALES_REPS = [
+  { id: "396827993", name: "Slim Labassi" },
+  { id: "17032870", name: "Alexandre Paquet" },
+];
 
 const HOURS_48 = 48 * 60 * 60 * 1000;
 const DAYS_60 = 60 * 24 * 60 * 60 * 1000;
@@ -71,12 +76,18 @@ function stageToPipeline(stageId: string): "entonnoir" | "inbound" | "outbound" 
 export async function GET(request: Request) {
   try {
     const { searchParams } = new URL(request.url);
-    const scope = searchParams.get("scope") === "team" ? "team" : "mine";
+    const requestedRepId = searchParams.get("repId");
+    const isTeamView = requestedRepId === "team";
+    // Default to the first rep on the roster if nothing/invalid was passed.
+    const activeRep =
+      SALES_REPS.find((r) => r.id === requestedRepId) ?? SALES_REPS[0];
+    const OWNER_ID = activeRep.id;
 
-    // Helper: include the owner filter only in "mine" scope. Spread this into
-    // each filters array below so the same queries work for both scopes.
+    // Helper: include the owner filter only when viewing a specific rep.
+    // Spread this into each filters array below so the same queries work
+    // whether we're scoped to one rep or showing the whole team.
     const ownerFilter = () =>
-      scope === "mine" ? [{ propertyName: "hubspot_owner_id", operator: "EQ" as const, value: OWNER_ID }] : [];
+      isTeamView ? [] : [{ propertyName: "hubspot_owner_id", operator: "EQ" as const, value: OWNER_ID }];
 
     // Calls run in parallel for speed (a serverless function has a hard time
     // limit — running everything sequentially risked timing out). Rate-limit
@@ -222,7 +233,7 @@ export async function GET(request: Request) {
         100
       ),
 
-      scope === "team" ? getOwnersMap() : Promise.resolve({} as Record<string, string>),
+      isTeamView ? getOwnersMap() : Promise.resolve({} as Record<string, string>),
     ]);
 
     // Tasks require the crm.objects.tasks.read (and write, for completing them)
@@ -251,9 +262,13 @@ export async function GET(request: Request) {
     });
 
     // ---- P1: Deals qu'on ferme (sheet % >= 40, matched to HubSpot by name) ----
-    const closingCandidates = closingSheetRows.rows.filter(
-      (r) => r.repSection === "Slim" && r.closingPercent >= 40
-    );
+    const activeRepFirstName = activeRep.name.split(" ")[0].toLowerCase();
+    const closingCandidates = isTeamView
+      ? closingSheetRows.rows.filter((r) => r.closingPercent >= 40)
+      : closingSheetRows.rows.filter((r) => {
+          const section = r.repSection.trim().toLowerCase();
+          return (section === activeRepFirstName || section === activeRep.name.toLowerCase()) && r.closingPercent >= 40;
+        });
     const p1 = await Promise.all(
       closingCandidates.map(async (row) => {
         const match = entonnoirDeals.results.find((d) =>
@@ -432,6 +447,8 @@ export async function GET(request: Request) {
     return NextResponse.json({
       generatedAt: new Date().toISOString(),
       sheetTabUsed: closingSheetRows.tabUsed,
+      salesReps: SALES_REPS,
+      activeRep: isTeamView ? null : activeRep,
       p1_closing: p1,
       p1b_entonnoir_no_followup: {
         total: p1b.length,

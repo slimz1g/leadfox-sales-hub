@@ -117,9 +117,6 @@ export default function PrioritesPage() {
           {new Date().toLocaleDateString("fr-CA", { weekday: "long", year: "numeric", month: "long", day: "numeric" }).toUpperCase()} · SLIM LABASSI
         </div>
         <h1 style={{ fontSize: 26, fontWeight: 700, color: COLORS.navy, margin: "6px 0 4px" }}>🎯 L'ordre du jour</h1>
-        <p style={{ fontSize: 14, color: COLORS.navySoft, margin: "0 0 4px" }}>
-          Le plus urgent en haut, le nettoyage en bas
-        </p>
         {data?.sheetTabUsed && (
           <p style={{ fontSize: 11, color: COLORS.navySoft, margin: "0 0 20px" }}>
             📊 Sheet : {data.sheetTabUsed}
@@ -319,19 +316,8 @@ export default function PrioritesPage() {
               }
               emptyText="✅ Rien à signaler."
             >
-              {data.upcoming_tasks.filter((t) => !completedTaskIds.has(t.id)).length > 0 && (
-                <div style={{ fontSize: 12, fontWeight: 700, color: COLORS.navySoft, marginTop: 4 }}>
-                  À VENIR (AUJOURD'HUI / DEMAIN)
-                </div>
-              )}
-              {data.upcoming_tasks
-                .filter((t) => !completedTaskIds.has(t.id))
-                .map((t) => (
-                  <TaskRow key={t.id} task={t} onComplete={handleCompleteTask} completing={completingId === t.id} tone={COLORS.blue} />
-                ))}
-
               {data.overdue_tasks.filter((t) => !completedTaskIds.has(t.id)).length > 0 && (
-                <div style={{ fontSize: 12, fontWeight: 700, color: COLORS.navySoft, marginTop: 12 }}>
+                <div style={{ fontSize: 12, fontWeight: 700, color: COLORS.navySoft, marginTop: 4 }}>
                   EN RETARD ({data.overdue_tasks.filter((t) => !completedTaskIds.has(t.id)).length})
                 </div>
               )}
@@ -346,6 +332,17 @@ export default function PrioritesPage() {
                   + {data.overdue_tasks.filter((t) => !completedTaskIds.has(t.id)).length - 20} autres tâches en retard — voir dans HubSpot
                 </div>
               )}
+
+              {data.upcoming_tasks.filter((t) => !completedTaskIds.has(t.id)).length > 0 && (
+                <div style={{ fontSize: 12, fontWeight: 700, color: COLORS.navySoft, marginTop: 12 }}>
+                  À VENIR (AUJOURD'HUI / DEMAIN)
+                </div>
+              )}
+              {data.upcoming_tasks
+                .filter((t) => !completedTaskIds.has(t.id))
+                .map((t) => (
+                  <TaskRow key={t.id} task={t} onComplete={handleCompleteTask} completing={completingId === t.id} tone={COLORS.blue} />
+                ))}
             </Section>
 
             <Section title="🧹 Nettoyage" count={p5.length}>

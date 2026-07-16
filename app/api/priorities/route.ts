@@ -15,11 +15,12 @@ import {
   getPrimaryContact,
   hubspotDealUrl,
   getOwnersMap,
+  getClosedWonThisMonth,
   STAGE_LABELS,
   PIPELINES,
   STAGES,
 } from "@/lib/hubspot";
-import { getClosingRows } from "@/lib/googleSheet";
+import { getClosingRows, getMonthlyGoal } from "@/lib/googleSheet";
 import { findTranscriptByParticipant, firefliesRecordingUrl } from "@/lib/fireflies";
 
 const HUBSPOT_PORTAL_ID = process.env.HUBSPOT_PORTAL_ID!;
@@ -104,6 +105,8 @@ export async function GET(request: Request) {
       remisEtBougePas,
       outboundGeneral,
       ownersMap,
+      monthlyGoal,
+      closedWonThisMonth,
     ] = await Promise.all([
       getClosingRows(),
 
@@ -234,6 +237,19 @@ export async function GET(request: Request) {
       ),
 
       isTeamView ? getOwnersMap() : Promise.resolve({} as Record<string, string>),
+
+      // Team-wide monthly goal + actual — fetched regardless of repId, since
+      // this is deliberately a single team-wide target, not per-rep. Wrapped
+      // so a Sheet hiccup (e.g. current month's column not found yet) doesn't
+      // take down the whole page.
+      getMonthlyGoal().catch((e) => {
+        console.warn("Skipping monthly goal (Sheet read failed):", e);
+        return null;
+      }),
+      getClosedWonThisMonth().catch((e) => {
+        console.warn("Skipping closed-won-this-month (HubSpot read failed):", e);
+        return { count: 0, amount: 0 };
+      }),
     ]);
 
     // Tasks require the crm.objects.tasks.read (and write, for completing them)
@@ -462,6 +478,16 @@ export async function GET(request: Request) {
       upcoming_tasks: upcomingTaskList,
       tasksDebugError,
       p6_outbound_general: p6,
+      monthly_goal: monthlyGoal
+        ? {
+            monthLabel: monthlyGoal.monthLabel,
+            tabUsed: monthlyGoal.tabUsed,
+            dealCountTarget: monthlyGoal.dealCountTarget,
+            dollarTarget: monthlyGoal.dollarTarget,
+            dealCountActual: closedWonThisMonth.count,
+            dollarActual: closedWonThisMonth.amount,
+          }
+        : null,
     });
   } catch (err: any) {
     console.error("Error building priorities:", err);

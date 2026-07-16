@@ -55,6 +55,14 @@ type PrioritiesResponse = {
   overdue_tasks: any[];
   upcoming_tasks: any[];
   p6_outbound_general: any[];
+  monthly_goal: {
+    monthLabel: string;
+    tabUsed: string;
+    dealCountTarget: number;
+    dollarTarget: number;
+    dealCountActual: number;
+    dollarActual: number;
+  } | null;
 };
 
 function fmtDate(d: Date) {
@@ -355,8 +363,60 @@ export default function HomePage() {
           <MetricCard label="🧹 À nettoyer" value={data?.p5_nettoyage.length ?? "—"} />
         </div>
 
-        <SectionTitle>🎯 Objectif du mois</SectionTitle>
-        <ComingSoon note="Nécessite un suivi de l'objectif mensuel (pas encore relié — le Google Sheet donne un % de closing par deal, pas un objectif d'équipe)." />
+        <SectionTitle>🎯 Objectif du mois{data?.monthly_goal ? ` — ${data.monthly_goal.monthLabel}` : ""}</SectionTitle>
+        {data?.monthly_goal ? (
+          <Card style={{ padding: 18, marginBottom: 32 }}>
+            <div style={{ marginBottom: 16 }}>
+              <div style={{ display: "flex", justifyContent: "space-between", fontSize: 13.5, marginBottom: 8 }}>
+                <span style={{ color: COLORS.navySoft }}>
+                  {data.monthly_goal.dealCountActual} deals fermés sur un objectif de {data.monthly_goal.dealCountTarget}
+                </span>
+                <span style={{ fontWeight: 700, color: COLORS.green }}>
+                  {data.monthly_goal.dealCountTarget > 0
+                    ? Math.round((data.monthly_goal.dealCountActual / data.monthly_goal.dealCountTarget) * 100)
+                    : 0}
+                  %
+                </span>
+              </div>
+              <div style={{ background: "#F1F2F5", borderRadius: 8, height: 12, overflow: "hidden" }}>
+                <div
+                  style={{
+                    width: `${Math.min(100, data.monthly_goal.dealCountTarget > 0 ? (data.monthly_goal.dealCountActual / data.monthly_goal.dealCountTarget) * 100 : 0)}%`,
+                    height: "100%",
+                    background: COLORS.green,
+                    borderRadius: 8,
+                  }}
+                />
+              </div>
+            </div>
+            <div>
+              <div style={{ display: "flex", justifyContent: "space-between", fontSize: 13.5, marginBottom: 8 }}>
+                <span style={{ color: COLORS.navySoft }}>
+                  {data.monthly_goal.dollarActual.toLocaleString("fr-CA", { style: "currency", currency: "CAD", maximumFractionDigits: 0 })} sur un objectif de{" "}
+                  {data.monthly_goal.dollarTarget.toLocaleString("fr-CA", { style: "currency", currency: "CAD", maximumFractionDigits: 0 })}
+                </span>
+                <span style={{ fontWeight: 700, color: COLORS.orange }}>
+                  {data.monthly_goal.dollarTarget > 0
+                    ? Math.round((data.monthly_goal.dollarActual / data.monthly_goal.dollarTarget) * 100)
+                    : 0}
+                  %
+                </span>
+              </div>
+              <div style={{ background: "#F1F2F5", borderRadius: 8, height: 12, overflow: "hidden" }}>
+                <div
+                  style={{
+                    width: `${Math.min(100, data.monthly_goal.dollarTarget > 0 ? (data.monthly_goal.dollarActual / data.monthly_goal.dollarTarget) * 100 : 0)}%`,
+                    height: "100%",
+                    background: COLORS.orange,
+                    borderRadius: 8,
+                  }}
+                />
+              </div>
+            </div>
+          </Card>
+        ) : (
+          <ComingSoon note="Le mois en cours n'a pas été trouvé dans l'onglet Objectif marketing/vente du Sheet — vérifie que la colonne du mois existe, ou que le nom de l'onglet n'a pas changé (nommage par trimestre)." />
+        )}
 
         <SectionTitle>🧠 Rétro du mois dernier</SectionTitle>
         <ComingSoon note="Pas encore de résumé automatique du mois précédent — à construire une fois qu'on a l'historique des deals fermés." />
